@@ -33,14 +33,16 @@ class NeteaseCheckin:
         self.phone = phone
         self.password = password
         self.session = requests.Session()
+        
+        # 禁用自动解压，我们手动处理
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Referer': 'https://music.163.com/',
             'Host': 'music.163.com',
             'Accept': '*/*',
-            'Accept-Encoding': 'gzip, deflate, br',
             'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
             'Connection': 'keep-alive',
+            'Accept-Encoding': 'gzip, deflate'
         })
         self.logged_in = False
         self.uid = None
@@ -55,8 +57,11 @@ class NeteaseCheckin:
             logger.info("开始登录...")
             
             # 先访问主页获取基本 cookies
-            self.session.get('https://music.163.com/', timeout=10)
-            time.sleep(0.5)
+            try:
+                self.session.get('https://music.163.com/', timeout=10)
+                time.sleep(0.5)
+            except:
+                pass
             
             # 使用登录接口
             login_url = "https://music.163.com/api/login/cellphone"
@@ -72,14 +77,16 @@ class NeteaseCheckin:
             }
             
             response = self.session.post(login_url, data=params, timeout=10)
+            response.encoding = 'utf-8'
             
             logger.info(f"登录响应状态码: {response.status_code}")
-            logger.info(f"登录响应内容: {response.text[:200]}")
             
+            # 尝试解析 JSON
             try:
                 data = response.json()
-            except:
-                logger.error(f"✗ 无法解析登录响应为 JSON")
+            except Exception as e:
+                logger.error(f"✗ 无法解析登录响应: {str(e)}")
+                logger.error(f"原始响应（前200字符）: {response.text[:200]}")
                 return False
             
             if data.get('code') == 200:
@@ -104,6 +111,8 @@ class NeteaseCheckin:
                 return False
         except Exception as e:
             logger.error(f"✗ 登录异常: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
     def checkin(self):
@@ -124,24 +133,25 @@ class NeteaseCheckin:
             }
             
             response = self.session.post(checkin_url, data=params, timeout=10)
+            response.encoding = 'utf-8'
             
             logger.info(f"签到响应状态码: {response.status_code}")
             
             try:
                 data = response.json()
-            except:
-                logger.error(f"✗ 签到响应无法解析为 JSON")
+            except Exception as e:
+                logger.error(f"✗ 签到响应无法解析为 JSON: {str(e)}")
                 return False
             
             if data.get('code') == 200:
                 result = data.get('data', {})
                 points = result.get('point', 0)
-                msg = result.get('msg', '签到��功')
+                msg = result.get('msg', '签到成功')
                 
                 logger.info(f"✓ {msg}！获得 {points} 积分")
                 return True
             elif data.get('code') == -1:
-                logger.warning("⚠ 可能已经签到过了，或签到接口有问题")
+                logger.warning("⚠ 可能已经签到过了")
                 return False
             else:
                 msg = data.get('msg', data.get('message', '未知错误'))
@@ -149,28 +159,12 @@ class NeteaseCheckin:
                 return False
         except Exception as e:
             logger.error(f"✗ 签到异常: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return False
     
-    def get_user_info(self):
-        """获取用户信息"""
-        if not self.logged_in:
-            return None
-        
-        try:
-            url = f"https://music.163.com/api/user/detail?uid={self.uid}"
-            response = self.session.get(url, timeout=10)
-            data = response.json()
-            
-            if data.get('code') == 200:
-                user_info = data.get('userDetail', {})
-                return user_info
-            return None
-        except Exception as e:
-            logger.error(f"获取用户信息失败: {str(e)}")
-            return None
-    
     def run(self):
-        """执行登��和签到"""
+        """执行登录和签到"""
         if not self.logged_in:
             self.login()
         
