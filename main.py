@@ -56,8 +56,9 @@ class NeteaseCheckin:
             
             # 先访问主页获取基本 cookies
             self.session.get('https://music.163.com/', timeout=10)
+            time.sleep(0.5)
             
-            # 使用新的登录接口
+            # 使用登录接口
             login_url = "https://music.163.com/api/login/cellphone"
             
             # 密码需要 MD5
@@ -66,11 +67,20 @@ class NeteaseCheckin:
             params = {
                 "phone": self.phone,
                 "password": password_md5,
-                "rememberLogin": "true"
+                "rememberLogin": "true",
+                "countrycode": "86"
             }
             
             response = self.session.post(login_url, data=params, timeout=10)
-            data = response.json()
+            
+            logger.info(f"登录响应状态码: {response.status_code}")
+            logger.info(f"登录响应内容: {response.text[:200]}")
+            
+            try:
+                data = response.json()
+            except:
+                logger.error(f"✗ 无法解析登录响应为 JSON")
+                return False
             
             if data.get('code') == 200:
                 # 获取用户ID
@@ -114,12 +124,19 @@ class NeteaseCheckin:
             }
             
             response = self.session.post(checkin_url, data=params, timeout=10)
-            data = response.json()
+            
+            logger.info(f"签到响应状态码: {response.status_code}")
+            
+            try:
+                data = response.json()
+            except:
+                logger.error(f"✗ 签到响应无法解析为 JSON")
+                return False
             
             if data.get('code') == 200:
                 result = data.get('data', {})
                 points = result.get('point', 0)
-                msg = result.get('msg', '签到成功')
+                msg = result.get('msg', '签到��功')
                 
                 logger.info(f"✓ {msg}！获得 {points} 积分")
                 return True
@@ -153,7 +170,7 @@ class NeteaseCheckin:
             return None
     
     def run(self):
-        """执行登录和签到"""
+        """执行登��和签到"""
         if not self.logged_in:
             self.login()
         
@@ -165,9 +182,9 @@ class NeteaseCheckin:
 
 def main():
     """主函数"""
-    # ⚠️ 重要：请在下面填入您的网易云账号
-    PHONE = "your_phone_number"      # 修改为你的手机号
-    PASSWORD = "your_password"        # 修改为你的密码
+    # ⚠️ 账号配置
+    PHONE = "15218225254"
+    PASSWORD = "Aa1530382609"
     
     if PHONE == "your_phone_number" or PASSWORD == "your_password":
         logger.error("❌ 错误：请先在 main.py 中配置账号和密码！")
